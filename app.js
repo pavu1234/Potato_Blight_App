@@ -3,9 +3,11 @@ const $ = id => document.getElementById(id);
 const CLASSES = ['Early blight','Healthy','Late blight'];
 const NOTES = ['The model found features most similar to early blight examples.','The model found features most similar to healthy leaf examples. This does not rule out other problems.','The model found features most similar to late blight examples.'];
 let model = null, selectedImage = null, imageURL = null, selection = 0, loading = false, predicting = false;
+function assessmentOutput(disease=null, confidence=null) { return window.LeafFlightAssessment?.get() || {disease,confidence,severityMode:'Phase 1 — classification only',severityBand:'Not measured',simulatedDuration:0,manualReview:true,agronomistReview:false,hardwareEnabled:false,safetyDisclaimer:'Simulation only. This duration is not a pesticide dose or real hardware command.'}; }
 function message(text = '') { $('message').textContent = text; $('message').hidden = !text; }
 function updateButton() { $('predict').disabled = !model || !selectedImage || predicting || window.droneCaptureBusy; }
 function clearResult() {
+ document.dispatchEvent(new CustomEvent('leaf-analysis-reset')); 
  $('result').hidden=true;$('empty-result').hidden=false;
  $('input-verdict').hidden=true;$('leaf-check-status').textContent='Leaf check required before disease analysis';
 }
@@ -16,7 +18,7 @@ function rejectInput(status) {
  $('input-verdict').textContent=text;$('input-verdict').hidden=false;
  $('leaf-check-status').textContent='Disease analysis blocked';
  document.dispatchEvent(new CustomEvent('leaf-input-rejected',{detail:{status}}));
- return {status:'rejected',reason:text};
+ return {...assessmentOutput(),status:'rejected',reason:text};
 }
 async function getBytes(path) { const r = await fetch(new URL(path, document.baseURI)); if (!r.ok) throw new Error(`Could not load ${path}: ${r.status}`); return await r.arrayBuffer(); }
 async function loadModel() {
@@ -25,7 +27,7 @@ async function loadModel() {
  try {
   if (!window.tf || !window.tflite_web_api_ModuleFactory) throw new Error('Prediction files did not load');
   await tf.setBackend('cpu'); await tf.ready();
-  const [wasm, bytes] = await Promise.all([getBytes('./tflite_web_api_cc.wasm'), getBytes('./tomato.tflite')]);
+  const [wasm, bytes] = await Promise.all([getBytes('./tflite_web_api_cc.wasm'), getBytes('./tomato-field-7c921aef.tflite')]);
   model = await createLeafEngine(tflite_web_api_ModuleFactory, wasm, bytes);
   $('model-status').textContent = 'Model ready · on-device';
  } catch (error) {
@@ -55,7 +57,7 @@ async function chooseFile(file, {keepCamera = false} = {}) {
 }
 function showResult(scores) {
  const top = scores.indexOf(Math.max(...scores));
- $('prediction-name').textContent = CLASSES[top]; $('top-score').textContent = `${(scores[top]*100).toFixed(1)}%`; $('result-description').textContent = NOTES[top]; $('scores').replaceChildren();
+ $('prediction-name').textContent = CLASSES[top]; $('top-score').textContent = `${(scores[top]*100).toFixed(1)}%`; $('result-description').textContent = NOTES[top] + ' This is a tentative prediction; the score is not diagnostic accuracy.'; $('scores').replaceChildren();
  scores.map((score,index)=>({score,index})).sort((a,b)=>b.score-a.score).forEach(({score,index})=>{
   const row=document.createElement('div'); row.className=`score-row${index===top?' winner':''}`;
   const heading=document.createElement('div');heading.className='score-header';
@@ -63,7 +65,8 @@ function showResult(scores) {
   const track=document.createElement('div');track.className='track';track.setAttribute('aria-hidden','true');const fill=document.createElement('div');fill.className='fill';fill.style.width=`${score*100}%`;track.append(fill);row.append(heading,track);$('scores').append(row);
  });
  $('low-score').hidden = scores[top]>=.5; $('result').hidden=false; $('empty-result').hidden=true;
- return {prediction:CLASSES[top],scores:Object.fromEntries(CLASSES.map((name,i)=>[name,scores[i]])),scope:'Three tomato leaf classes only; not a diagnosis.'};
+ document.dispatchEvent(new CustomEvent('leaf-analysis-complete',{detail:{disease:CLASSES[top],confidence:scores[top],selection,image:selectedImage}}));
+ return {...assessmentOutput(CLASSES[top],scores[top]),prediction:CLASSES[top],scores:Object.fromEntries(CLASSES.map((name,i)=>[name,scores[i]])),scope:'Three tomato leaf classes only; not a diagnosis.'};
 }
 async function predict() {
  if (predicting || !model || !selectedImage || window.droneCaptureBusy) throw new Error('Select a photo and wait for the model to be ready.');
@@ -93,4 +96,6 @@ $('predict').addEventListener('click',()=>{predict().catch(()=>{});});$('retry')
 $('drop-zone').addEventListener('drop',event=>{if(event.dataTransfer.files.length)chooseFile(event.dataTransfer.files[0]);});
 if(document.modelContext?.registerTool){try{Promise.resolve(document.modelContext.registerTool({name:'analyze_selected_tomato_leaf',title:'Analyze selected tomato leaf',description:'Run the trained model on the photo already selected by the user, and display all three class scores. Requires a loaded model and selected photo.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:false},execute:async input=>{if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).length)throw new Error('Expected an empty object');return await predict();}})).catch(()=>{});}catch{}}
 loadModel();
+
+
 

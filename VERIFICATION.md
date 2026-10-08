@@ -1,32 +1,32 @@
-# Leaf-input check verification
+# Verification and scope
 
-## Implemented behavior
+## Unchanged disease model
+`tomato-field-7c921aef.tflite` SHA-256:
+`7c921aefe7035e4b7c6ae96d1e5daf065638b6be675dc95afcb998dfedd28004`
+The model was downloaded from the currently deployed website and its hash verified. RGB, 224×224 bilinear resizing and float32 0–255 preprocessing are unchanged. New code consumes an event after classification; it does not modify disease probabilities.
 
-Every normal prediction entry point uses `predict()` in app.js, including the registered analysis tool. Before image preprocessing or disease inference, it awaits LeafGuard. Only status `leaf` proceeds. `not-leaf` and `uncertain` hide disease results and clear disease scores. Unavailable/failed leaf checking blocks prediction. Changing an image during checking cancels the stale result. The main thread prevents concurrent prediction requests.
+## Implemented policy
+- Phase 1: no severity percentage, zero duration, manual review.
+- Phase 2 bands: 0% Healthy / 0 s; >0–5 Very low / 0 s; >5–10 Low / 2 s; >10–25 Medium / 5 s; >25–50 High / 8 s plus agronomist review; >50 Critical / 0 s plus review.
+- Disease confidence <80%, invalid leaf, failed quality check, absent/invalid segmentation, segmentation confidence <80%, mismatched image selection, zero denominator, out-of-leaf disease pixels, or disagreement between Healthy classification and positive severity block the simulation.
+- High severity requires operator-recorded agronomist review before the simulation. Every nonzero simulation also requires explicit operator confirmation and a manual water level above zero and no more than 100%.
+- Image/input changes, review withdrawal, Stop, hidden tab and page exit stop the timer. Each completed simulation clears confirmation. Critical severity cannot start even when review is recorded.
+- The sole product category is “locally registered broad-spectrum protectant fungicide.” This is a simulation category, not a product prescription. Actual product choice and application require the local label and agronomist approval.
+- No hardware control, dosing, concentration, mixing-ratio or application-rate calculation exists.
 
-The disease model weights, three-class order and RGB float32 0–255, bilinear 224 × 224 preprocessing remain unchanged. Existing camera connections are not modified. Added input verification affects acceptance rate and latency; original disease-only validation accuracy must not be used as the accuracy of this combined system.
+## Quality screening limits
+Basic quality screening checks shortest dimension >=224, mean grayscale brightness 20–240, fewer than 70% near-black/near-white pixels, and grayscale Laplacian variance >=8 on a 256×256 view. These are documented heuristics, not a validated image-quality model. They do not guarantee detection of every poor photo. The existing semantic leaf guard can also make mistakes. Imported masks and their confidence require human verification.
 
-The checker is CLIP ViT-B/32 quantized, distributed by Xenova for Transformers.js, pinned to revision d15189d7028b43f1d3e65039190477f6af591c2a. Transformers.js is pinned and vendored at 2.17.2. It compares explicit leaf prompts to face/person, animal, household object, screenshot, vegetation/field and other prompts. Acceptance requires a strong leaf preference; thresholds are conservative implementation choices, not statistically calibrated probabilities. No gate score is presented as a percentage of correctness.
+## Tests executed
+`node tests/policy.test.mjs`: passed all band boundaries, confidence exactly at/below 80%, invalid data, missing/low-confidence segmentation, pixel count constraints, stale image identifiers, confirmation, water, classification conflicts, high/critical severity and mask validation.
 
-## Checks performed
+Chromium desktop (1440×1000) and mobile (390×844): actual disease classifier loaded and a real Early-blight sample classified. The leaf guard alone was mocked as accepted for this integration test to avoid redownloading its 154 MB model; this was not an accuracy test of the guard. Synthetic mask fixtures tested mask import, exact pixel calculation, two-second simulation after confirmation, timer completion, input-change cancellation, invalid-input clearing and assessment JSON. Those fixture masks are not diagnostic segmentation ground truth and are not shipped as real leaf masks.
 
-- Ran the actual quantized semantic model locally: three provided leaf examples (healthy, early blight and late blight) passed; the supplied screenshot, its extracted face-photo region, and the project drone illustration were rejected.
-- Ran real CLIP WebAssembly inference inside Chromium with the production browser worker. Downloaded model bytes were served locally during this test; disease inference was mocked solely to count whether it was invoked.
-- Browser flow: face rejected with zero disease calls; healthy leaf passed with one disease call; face after that rejected without another disease call or stale disease result.
-- Checked 1440-pixel desktop and 390-pixel mobile rendering, rejection message visibility and horizontal overflow.
-- Integration unit checks passed for non-leaf/uncertain rejection, missing checker, check failure, image changes while checking, duplicate requests, and accepted input retaining original preprocessing.
-- Referenced UI element IDs were verified; modified JavaScript syntax checked.
+No page JavaScript errors or mobile horizontal overflow. WebGL drone rendered; desktop and mobile screenshots inspected. Reduced-motion preference starts with a static drone. Browser results: `tests/browser-results.json`.
 
-This is a small smoke/regression test, not an independent accuracy evaluation. No user face image, screenshot or model scores from it are included in this package. No physical-drone, Safari, Android/iOS hardware, broad out-of-distribution, or large independent dataset test is claimed. A lightweight domain-trained leaf/non-leaf detector and representative validation data would be needed for stronger performance and reliability claims.
+No physical drone, camera receiver, tank sensor or pump was used in this test. Existing camera code was preserved. No new model accuracy or real-world severity-validation claim is made.
 
-## Runtime behavior
-
-The worker keeps the classifier loaded for this tab. The main thread caches a verdict only for the same decoded Image object. Each newly selected upload/capture is checked again. Model files may be cached by the browser. The image remains local; only model files are fetched remotely. The first download and processing can take time on a slow connection or device. A four-minute timeout or worker failure blocks disease inference and allows retry.
-
-## Sources and licenses
-
-- https://huggingface.co/Xenova/clip-vit-base-patch32
-- https://huggingface.co/docs/transformers.js/v2.17.2/api/pipelines
-- https://github.com/openai/CLIP
-
-Third-party licenses and notices are in vendor/. Do not remove them when redistributing the packaged runtime.
+## Reference material
+The numeric simulation policy comes from the user's project specification, not an agronomic dosing schedule.
+- University of Minnesota, sprayer calibration basics: https://blog-fruit-vegetable-ipm.extension.umn.edu/2019/03/sprayer-calibration-basics-tips-for.html — calibration and label directions govern real application, which this simulator does not calculate.
+- Three.js documentation: https://threejs.org/docs/ — procedural 3D rendering. Three.js 0.180.0 is bundled locally with its MIT license.
