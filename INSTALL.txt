@@ -1,0 +1,58 @@
+LEAF INPUT CHECK — UPDATE FOR YOUR EXISTING WEBSITE
+
+What this fixes
+The three-class disease model previously scored every image, including faces.
+A separate semantic leaf check now runs before disease inference.
+Non-leaf inputs show: Not a leaf — upload a clear photo of a tomato leaf.
+Uncertain inputs show: Leaf not confirmed — use a clear close-up of one tomato leaf.
+Rejected inputs receive NO disease prediction or percentage. If the checker cannot
+load or crashes, disease analysis stays blocked instead of bypassing the check.
+
+Install on GitHub Pages
+1. Extract this ZIP.
+2. Open https://github.com/pavu1234/tomato_prediction_website
+3. Select Add file > Upload files.
+4. Upload these six files to the ROOT, replacing existing versions where applicable:
+   index.html
+   app.js
+   drone-ui.js
+   leaf-guard.js
+   leaf-check-worker.js
+   leaf-policy.mjs
+5. Drag the entire vendor folder into the same upload area. Keep its name and structure:
+   vendor/transformers.min.js
+   vendor/ort-wasm-simd.wasm
+   vendor/ort-wasm.wasm
+   vendor/*.txt license files
+6. Commit changes. Wait for GitHub Pages to deploy, then refresh the site.
+7. Upload the face image again and click Check & analyze leaf. Allow the first model
+   download to complete. You should see a rejection, not a disease percentage.
+
+Keep all other existing files, including camera.js, whep-camera.js, drone.css,
+drone.png, engine.js, TFJS/TFLite runtime files and tomato.tflite. Do not delete
+or replace your trained disease weights. The update works with the existing
+multi-camera interface and its uploads/captured images.
+
+First-use download
+The additional CLIP model weights are about 154 MB, plus configuration/tokenizer
+and runtime assets. They download from Hugging Face at a pinned revision, once
+per browser cache when available. Use Wi-Fi for first use. The ZIP does not
+contain those remote weights. If the browser clears the cache, a download is
+needed again. Low-memory devices may not support this checker; analysis blocks
+rather than displaying an unchecked result.
+
+Photo privacy
+Images are converted to pixels and checked locally in a browser worker.
+No image is sent to Hugging Face or a prediction API. The model host receives
+normal model-download requests, not your photo. Existing network-drone adapters
+still carry their configured video stream as before.
+
+Limits
+This is an added semantic input screen, NOT a guarantee that every possible
+non-leaf image is rejected. It is not a botanically trained tomato-species
+validator and has not been calibrated on a large independent acceptance dataset.
+Use close-up tomato leaf images only. See VERIFICATION.md for the checks performed.
+The disease model's previous 95.68% validation number does NOT measure the new
+leaf check or overall two-stage accuracy. No new overall accuracy is claimed.
+
+Do not upload your face/screenshot as a project asset; it is not included here.
