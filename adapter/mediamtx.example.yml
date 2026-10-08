@@ -1,0 +1,17 @@
+# Ground-station configuration template; do not upload camera credentials to GitHub.
+# Replace values and provide certificate files trusted by your viewing device.
+# Trusted isolated LAN example, without authentication. Not a public deployment.
+webrtc: true
+webrtcAddress: :8889
+webrtcEncryption: true
+webrtcServerKey: REPLACE-server.key
+webrtcServerCert: REPLACE-server.crt
+webrtcAllowOrigins: ["https://pavu1234.github.io"]
+webrtcAdditionalHosts: ["REPLACE-ADAPTER-LAN-IP"]
+webrtcLocalUDPAddress: :8189
+paths:
+  drone:
+    source: rtsp://REPLACE-DRONE-IP/REPLACE-STREAM-PATH
+    sourceOnDemand: true
+    alwaysAvailable: false
+    record: false
